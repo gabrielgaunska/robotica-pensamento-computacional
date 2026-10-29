@@ -50,7 +50,13 @@ const notice = (message, type = 'info') => {
   node.hidden = false;
   window.setTimeout(() => { if (node) node.hidden = true; }, 5000);
 };
-const goTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+const goTop = () => {
+  requestAnimationFrame(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  });
+};
 
 function header() {
   return `<header class="topbar"><a class="brand" href="#" data-action="home"><span class="brand-icon">🤖</span><span>Robótica e Pensamento<br class="brand-break"> Computacional na Prática</span></a><nav><button class="nav-link" data-action="home">Início</button>${isAdmin ? '<button class="nav-link" data-action="admin">Painel do professor</button><button class="nav-link" data-action="logout">Sair</button>' : '<button class="nav-link" data-action="login">Área do professor</button>'}</nav></header>`;
@@ -214,9 +220,9 @@ app.addEventListener('click', async e => {
   if (action === 'admin') { if (!isAdmin) return loginView(); await refresh('admin'); goTop(); }
   if (action === 'logout') { if (supabase) await supabase.auth.signOut(); currentUser=null; isAdmin=false; await refresh('home'); notice('Você saiu do painel.'); }
   if (action === 'open-activity') { const a=activities.find(x=>String(x.id)===btn.dataset.id); if(a) activityView(a); goTop(); }
-  if (action === 'prev-step' && currentStep>0) { currentStep--; renderStep(); goTop(); }
-  if (action === 'next-step' && currentActivity) { if(currentStep < currentActivity.steps.length-1) {currentStep++;renderStep();goTop();} else {notice('Parabéns! Você concluiu esta atividade.','success');} }
-  if (action === 'goto-step') { currentStep=Number(btn.dataset.step);renderStep();goTop(); }
+  if (action === 'prev-step' && currentStep>0) { currentStep--; renderStep(); }
+  if (action === 'next-step' && currentActivity) { if(currentStep < currentActivity.steps.length-1) {currentStep++;renderStep();} else {notice('Parabéns! Você concluiu esta atividade.','success');} }
+  if (action === 'goto-step') { currentStep=Number(btn.dataset.step);renderStep(); }
   if (action === 'new') editorView();
   if (action === 'edit') { const a=activities.find(x=>String(x.id)===btn.dataset.id); if(a && a.id!=='starter') editorView(a); else notice('A atividade de demonstração precisa ser importada para o banco antes de editar.', 'info'); }
   if (action === 'close-editor') { const editor=document.querySelector('#editor'); if(editor) editor.innerHTML=''; }
