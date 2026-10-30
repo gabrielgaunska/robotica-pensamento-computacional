@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import './style.css';
 
@@ -111,15 +112,22 @@ function adminView() {
 }
 function editorView(activity = null) {
   editingId = activity?.id || null;
-  draftSteps = (activity?.steps || [{title:'',text:'',image_url:''}]).map(s => ({...s}));
+  // Mantém File e preview_url das imagens já selecionadas ao reconstruir o editor.
+  draftSteps = (activity?.steps || [{title:'',text:'',image_url:'',file:null,preview_url:''}]).map(s => ({...s}));
   const isNew = !activity;
   const editor = document.querySelector('#editor');
   editor.innerHTML = `<section class="editor-card" id="activity-editor"><div class="editor-head"><div><span class="eyebrow">${isNew?'CRIAR CONTEÚDO':'EDITAR CONTEÚDO'}</span><h2>${isNew?'Nova atividade':'Editar atividade'}</h2></div><button class="icon-btn" data-action="close-editor" aria-label="Fechar">✕</button></div>
-  <form id="activity-form"><div class="form-grid"><label>Título da atividade<input name="title" required maxlength="140" value="${esc(activity?.title||'')}"></label><label>Unidade<input name="unit" value="${esc(activity?.unit||'')}" placeholder="Ex.: Unidade 28"></label><label>Duração<input name="duration" value="${esc(activity?.duration||'')} " placeholder="Ex.: 2 horas"></label><label class="span-2">Descrição curta<textarea name="summary" rows="3" required>${esc(activity?.summary||'')}</textarea></label><label class="span-2">Materiais necessários (um por linha)<textarea name="materials" rows="4">${esc(Array.isArray(activity?.materials) ? activity.materials.join('\n') : (activity?.materials || ''))}</textarea></label></div><div class="editor-steps-head"><div><h3>Passo a passo ilustrado</h3><p>Adicione quantas etapas precisar. Cada etapa pode ter sua própria imagem.</p></div><button type="button" class="secondary-btn" data-action="add-step">＋ Adicionar passo</button></div><div id="draft-steps">${draftSteps.map((s,i)=>stepEditor(s,i)).join('')}</div><div class="form-actions"><button type="button" class="secondary-btn" data-action="close-editor">Cancelar</button><button type="submit" class="primary-btn">${isNew?'Salvar atividade':'Salvar alterações'}</button></div></form></section>`;
+  <form id="activity-form"><div class="form-grid"><label>Título da atividade<input name="title" required maxlength="140" value="${esc(activity?.title||'')}"></label><label>Unidade<input name="unit" value="${esc(activity?.unit||'')} " placeholder="Ex.: Unidade 28"></label><label>Duração<input name="duration" value="${esc(activity?.duration||'')} " placeholder="Ex.: 2 horas"></label><label class="span-2">Descrição curta<textarea name="summary" rows="3" required>${esc(activity?.summary||'')}</textarea></label><label class="span-2">Materiais necessários (um por linha)<textarea name="materials" rows="4">${esc(Array.isArray(activity?.materials) ? activity.materials.join('\n') : (activity?.materials || ''))}</textarea></label></div><div class="editor-steps-head"><div><h3>Passo a passo ilustrado</h3><p>Adicione quantas etapas precisar. Cada etapa pode ter sua própria imagem.</p></div><button type="button" class="secondary-btn" data-action="add-step">＋ Adicionar passo</button></div><div id="draft-steps">${draftSteps.map((s,i)=>stepEditor(s,i)).join('')}</div><div class="form-actions"><button type="button" class="secondary-btn" data-action="close-editor">Cancelar</button><button type="submit" class="primary-btn">${isNew?'Salvar atividade':'Salvar alterações'}</button></div></form></section>`;
   editor.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function stepEditor(step, i) {
-  return `<article class="draft-step" data-index="${i}"><div class="draft-step-head"><h4>Etapa ${i+1}</h4><button type="button" class="text-danger" data-action="remove-step" data-step="${i}" ${draftSteps.length===1?'disabled':''}>Remover etapa</button></div><label>Título da etapa<input data-field="title" data-step="${i}" value="${esc(step.title||'')}" required placeholder="Ex.: Conhecendo o microfone"></label><label>Instruções<textarea data-field="text" data-step="${i}" rows="4" required placeholder="Explique o que o aluno deve fazer...">${esc(step.text||'')}</textarea></label><label>Imagem grande da etapa<input type="file" accept="image/*" data-image-step="${i}"><small>Prefira JPG, PNG ou WebP. Tamanho recomendado: até 8 MB.</small></label><div class="image-preview" id="preview-${i}">${step.image_url?`<img src="${esc(step.image_url)}" alt="Prévia da imagem da etapa ${i+1}">`:'<span>Nenhuma imagem selecionada</span>'}</div><input type="hidden" data-field="image_url" data-step="${i}" value="${esc(step.image_url||'')}"></article>`;
+  const preview = step.preview_url || step.image_url || '';
+  return `<article class="draft-step" data-index="${i}"><div class="draft-step-head"><h4>Etapa ${i+1}</h4><button type="button" class="text-danger" data-action="remove-step" data-step="${i}" ${draftSteps.length===1?'disabled':''}>Remover etapa</button></div>
+  <label>Título da etapa<input data-field="title" data-step="${i}" value="${esc(step.title||'')}" required placeholder="Ex.: Conhecendo o microfone"></label>
+  <label>Instruções<textarea data-field="text" data-step="${i}" rows="4" required placeholder="Explique o que o aluno deve fazer...">${esc(step.text||'')}</textarea></label>
+  <label>Imagem grande da etapa<input type="file" accept="image/*" data-image-step="${i}"><small>Prefira JPG, PNG ou WebP. Tamanho recomendado: até 8 MB.</small></label>
+  <div class="image-preview" id="preview-${i}">${preview?`<img src="${esc(preview)}" alt="Prévia da imagem da etapa ${i+1}">`:'<span>Nenhuma imagem selecionada</span>'}</div>
+  <input type="hidden" data-field="image_url" data-step="${i}" value="${esc(step.image_url||'')}"></article>`;
 }
 function syncDraftFromDOM() {
   document.querySelectorAll('[data-field]').forEach(el => {
@@ -132,7 +140,6 @@ async function loadActivities() {
   const { data, error } = await supabase.from('activities').select('*').order('created_at', {ascending:false});
   if (error) { console.error(error); activities = [starter]; return; }
   activities = data || [];
-  // A atividade inicial é um exemplo local até ser importada/publicada pelo professor.
   if (!activities.some(a => a.title === starter.title)) activities.unshift(starter);
 }
 async function checkAdmin() {
@@ -155,6 +162,7 @@ async function refresh(view = 'home') {
 function showConfiguration() {
   shell(`<section class="setup-warning"><span class="warning-icon">⚙️</span><h1>Quase pronto!</h1><p>O site já está montado, mas precisa ser conectado ao Supabase para ativar o login, salvar atividades e armazenar imagens permanentemente.</p><ol><li>Crie um projeto no Supabase.</li><li>Execute o arquivo <code>supabase/schema.sql</code> no SQL Editor.</li><li>Copie <code>.env.example</code> para <code>.env</code> e preencha a URL e a chave publicável.</li><li>Crie a conta do professor e marque o perfil como <code>admin</code>, conforme o README.</li></ol><p>Enquanto isso, a atividade de exemplo aparece como demonstração local. As alterações não serão salvas permanentemente.</p></section>`);
 }
+
 app.addEventListener('input', e => {
   if (e.target.id === 'search') filteredCards(e.target.value);
   if (e.target.matches('[data-field]')) {
@@ -162,21 +170,32 @@ app.addEventListener('input', e => {
     if (draftSteps[i]) draftSteps[i][e.target.dataset.field] = e.target.value;
   }
 });
+
 app.addEventListener('change', async e => {
   const input = e.target;
   if (!input.matches('[data-image-step]') || !input.files?.[0]) return;
+
   syncDraftFromDOM();
   const i = Number(input.dataset.imageStep);
   const file = input.files[0];
+
   if (!file.type.startsWith('image/')) return notice('Escolha um arquivo de imagem.', 'error');
   if (file.size > 8 * 1024 * 1024) return notice('A imagem deve ter até 8 MB.', 'error');
-  const preview = document.querySelector(`#preview-${i}`);
-  if (preview) preview.innerHTML = `<img src="${URL.createObjectURL(file)}" alt="Prévia da imagem selecionada">`;
+  if (!draftSteps[i]) return;
+
+  if (draftSteps[i].preview_url) URL.revokeObjectURL(draftSteps[i].preview_url);
   draftSteps[i].file = file;
+  draftSteps[i].preview_url = URL.createObjectURL(file);
+
+  const preview = document.querySelector(`#preview-${i}`);
+  if (preview) preview.innerHTML = `<img src="${draftSteps[i].preview_url}" alt="Prévia da imagem da etapa ${i+1}">`;
+
   notice('Imagem selecionada. Ela será enviada ao salvar a atividade.');
 });
+
 app.addEventListener('submit', async e => {
   e.preventDefault();
+
   if (e.target.id === 'login-form') {
     if (!configured) return showConfiguration();
     const form = new FormData(e.target);
@@ -186,12 +205,14 @@ app.addEventListener('submit', async e => {
     if (!isAdmin) { await supabase.auth.signOut(); currentUser=null; return notice('Esta conta não tem permissão de professor.', 'error'); }
     await refresh('admin'); notice('Login realizado com sucesso.', 'success');
   }
+
   if (e.target.id === 'activity-form') {
     if (!configured || !isAdmin) return notice('Conecte o Supabase e entre como professor para salvar.', 'error');
     syncDraftFromDOM();
     const form = new FormData(e.target);
     const title = String(form.get('title')||'').trim();
     const payload = {title,unit:String(form.get('unit')||'').trim(),duration:String(form.get('duration')||'').trim(),summary:String(form.get('summary')||'').trim(),materials:String(form.get('materials')||'').split('\n').map(s=>s.trim()).filter(Boolean),steps:[],published:false,created_by:currentUser.id};
+
     for (let i=0;i<draftSteps.length;i++) {
       const s = draftSteps[i];
       if (s.file) {
@@ -201,9 +222,13 @@ app.addEventListener('submit', async e => {
         if (uploadError) return notice(`Erro ao enviar imagem da etapa ${i+1}: ${uploadError.message}`, 'error');
         const {data:publicData} = supabase.storage.from('activity-images').getPublicUrl(path);
         s.image_url = publicData.publicUrl;
+        s.file = null;
+        if (s.preview_url) URL.revokeObjectURL(s.preview_url);
+        s.preview_url = '';
       }
       payload.steps.push({title:s.title,text:s.text,image_url:s.image_url||''});
     }
+
     let result;
     if (editingId) result = await supabase.from('activities').update({...payload,updated_at:new Date().toISOString()}).eq('id',editingId).select().single();
     else result = await supabase.from('activities').insert(payload).select().single();
@@ -211,10 +236,12 @@ app.addEventListener('submit', async e => {
     await refresh('admin'); notice('Atividade salva como rascunho. Publique quando estiver pronta.', 'success'); goTop();
   }
 });
+
 app.addEventListener('click', async e => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
   const action = btn.dataset.action;
+
   if (action === 'home') { await refresh('home'); goTop(); }
   if (action === 'login') { if (!configured) return showConfiguration(); loginView(); }
   if (action === 'admin') { if (!isAdmin) return loginView(); await refresh('admin'); goTop(); }
@@ -226,14 +253,35 @@ app.addEventListener('click', async e => {
   if (action === 'new') editorView();
   if (action === 'edit') { const a=activities.find(x=>String(x.id)===btn.dataset.id); if(a && a.id!=='starter') editorView(a); else notice('A atividade de demonstração precisa ser importada para o banco antes de editar.', 'info'); }
   if (action === 'close-editor') { const editor=document.querySelector('#editor'); if(editor) editor.innerHTML=''; }
-  if (action === 'add-step') { syncDraftFromDOM(); draftSteps.push({title:'',text:'',image_url:''}); editorView({id:editingId, ...(document.querySelector('#activity-form') ? Object.fromEntries(new FormData(document.querySelector('#activity-form'))) : {}), steps:draftSteps}); }
-  if (action === 'remove-step') { syncDraftFromDOM(); if(draftSteps.length>1){draftSteps.splice(Number(btn.dataset.step),1); editorView({id:editingId,...(document.querySelector('#activity-form')?Object.fromEntries(new FormData(document.querySelector('#activity-form'))):{}),steps:draftSteps});} }
+
+  if (action === 'add-step') {
+    syncDraftFromDOM();
+    const form = document.querySelector('#activity-form');
+    const formData = Object.fromEntries(new FormData(form));
+    draftSteps.push({title:'',text:'',image_url:'',file:null,preview_url:''});
+    editorView({id:editingId,...formData,steps:draftSteps});
+  }
+
+  if (action === 'remove-step') {
+    syncDraftFromDOM();
+    if (draftSteps.length > 1) {
+      const index = Number(btn.dataset.step);
+      const removed = draftSteps[index];
+      if (removed?.preview_url) URL.revokeObjectURL(removed.preview_url);
+      draftSteps.splice(index,1);
+      const form = document.querySelector('#activity-form');
+      const formData = Object.fromEntries(new FormData(form));
+      editorView({id:editingId,...formData,steps:draftSteps});
+    }
+  }
+
   if (action === 'toggle-publish') {
     if (!isAdmin || !configured) return;
     const a=activities.find(x=>String(x.id)===btn.dataset.id); if(!a || a.id==='starter') return notice('Importe a atividade de demonstração para o banco antes de publicar.', 'info');
     const {error}=await supabase.from('activities').update({published:!a.published,updated_at:new Date().toISOString()}).eq('id',a.id);
     if(error) notice(error.message,'error'); else {await refresh('admin');notice(a.published?'Atividade despublicada.':'Atividade publicada!','success');}
   }
+
   if (action === 'delete') {
     if(!isAdmin || !configured) return;
     const a=activities.find(x=>String(x.id)===btn.dataset.id); if(!a || a.id==='starter') return notice('Importe a atividade de demonstração para o banco antes de excluir.', 'info');
@@ -242,6 +290,7 @@ app.addEventListener('click', async e => {
     if(error) notice(error.message,'error'); else {await refresh('admin');notice('Atividade excluída.','success');}
   }
 });
+
 (async () => {
   if (!configured) { activities=[starter]; homeView(); return; }
   await refresh('home');
