@@ -106,7 +106,7 @@ function loginView() {
   shell(`<section class="auth-wrap"><div class="auth-card"><div class="auth-icon">🔐</div><span class="eyebrow">ACESSO RESTRITO</span><h1>Área do professor</h1><p>Entre com a conta autorizada para criar e publicar atividades.</p><form id="login-form"><label>E-mail<input type="email" name="email" autocomplete="username" required placeholder="professor@escola.com"></label><label>Senha<input type="password" name="password" autocomplete="current-password" required placeholder="Sua senha"></label><button class="primary-btn full" type="submit">Entrar no painel</button><p class="form-help">A conta do professor deve ser criada no painel do Supabase. O cadastro público fica desativado.</p></form></div></section>`);
 }
 function adminView() {
-  const rows = activities.map(a=>`<article class="admin-activity"><div><span class="pill">${esc(a.unit||'Atividade')}</span><h3>${esc(a.title)}</h3><p>${(a.steps||[]).length} etapa(s) · ${a.published?'Publicada':'Rascunho'}</p></div><div class="admin-actions"><button class="secondary-btn compact" data-action="edit" data-id="${esc(a.id)}">Editar</button><button class="secondary-btn compact" data-action="toggle-publish" data-id="${esc(a.id)}">${a.published?'Despublicar':'Publicar'}</button>${a.id==='starter'?'':'<button class="danger-btn compact" data-action="delete" data-id="'+esc(a.id)+'">Excluir</button>'}</div></article>`).join('');
+  const rows = activities.map(a=>`<article class="admin-activity"><div><span class="pill">${esc(a.unit||'Atividade')}</span><h3>${esc(a.title)}</h3><p>${(a.steps||[]).length} etapa(s) · ${a.published?'Publicada':'Rascunho'}</p></div><div class="admin-actions"><button class="secondary-btn compact" data-action="edit" data-id="${esc(a.id)}">Editar</button><button class="secondary-btn compact" data-action="toggle-publish" data-id="${esc(a.id)}">${a.published?'Despublicar':'Publicar'}</button>${(a.id==='starter' || a.title===starter.title) ? '' : '<button class="danger-btn compact" data-action="delete" data-id="'+esc(a.id)+'">Excluir</button>'}</div></article>`).join('');
   shell(`<section class="admin-head"><div><span class="eyebrow">ESPAÇO DO EDUCADOR</span><h1>Painel do professor</h1><p>Crie atividades, ilustre cada etapa e compartilhe com seus alunos.</p></div><button class="primary-btn" data-action="new">＋ Nova atividade</button></section><div class="admin-note">💡 Dica: use imagens nítidas e grandes. Elas serão exibidas em largura ampla para facilitar a leitura nos Chromebooks.</div><section class="admin-list"><h2>Suas atividades</h2>${rows||'<div class="empty-state">Nenhuma atividade cadastrada.</div>'}</section><div id="editor"></div>`);
 }
 function editorView(activity = null) {
@@ -141,16 +141,15 @@ async function loadActivities() {
   activities = data || [];
   if (!activities.some(a => a.title === starter.title)) activities.unshift(starter);
 }
-function checkAdmin() {
+async function checkAdmin() {
   if (!configured) return;
-  return supabase.auth.getSession().then(async ({data:{session}}) => {
-    currentUser = session?.user || null;
-    isAdmin = false;
-    if (currentUser) {
-      const {data} = await supabase.from('profiles').select('role').eq('id', currentUser.id).maybeSingle();
-      isAdmin = data?.role === 'admin';
-    }
-  });
+  const {data:{session}} = await supabase.auth.getSession();
+  currentUser = session?.user || null;
+  isAdmin = false;
+  if (currentUser) {
+    const {data} = await supabase.from('profiles').select('role').eq('id', currentUser.id).maybeSingle();
+    isAdmin = data?.role === 'admin';
+  }
 }
 async function refresh(view = 'home') {
   if (configured) await checkAdmin();
@@ -284,8 +283,7 @@ app.addEventListener('click', async e => {
 
   if (action === 'delete') {
     if(!isAdmin || !configured) return;
-    const a=activities.find(x=>String(x.id)===btn.dataset.id);
-    if(!a || a.id==='starter') return notice('A atividade Comunicação Sonora com micro:bit é protegida e não pode ser excluída.', 'info');
+    const a=activities.find(x=>String(x.id)===btn.dataset.id); if(!a || a.id==='starter' || a.title===starter.title) return notice('A atividade Comunicação Sonora com micro:bit é protegida e não pode ser excluída.', 'info');
     if(!confirm(`Excluir a atividade "${a.title}"? Essa ação não pode ser desfeita.`)) return;
     const {error}=await supabase.from('activities').delete().eq('id',a.id);
     if(error) notice(error.message,'error'); else {await refresh('admin');notice('Atividade excluída.','success');}
